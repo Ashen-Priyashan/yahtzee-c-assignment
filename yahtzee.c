@@ -247,61 +247,103 @@ void humanTurn(int dice[], int size, int usedCategories[], int *totalScore, int 
 
 
 
+// Return the highest score available for a dice roll.
+int bestAvailableScore(int dice[], int usedCategories[]) {
+    int bestScore = 0;
+
+    for (int category = 0; category < 13; category++) {
+        if (usedCategories[category] == 0) {
+            int score = calculateScore(dice, category);
+            if (score > bestScore) bestScore = score;
+        }
+    }
+
+    return bestScore;
+}
+
+// Estimate the average best score after rerolling the dice in a mask.
+double expectedScoreForMask(int dice[], int usedCategories[], int rerollMask) {
+    int rerollIndices[DICE_COUNT];
+    int rerollCount = 0;
+    int outcomeCount = 1;
+    double scoreTotal = 0.0;
+
+    for (int i = 0; i < DICE_COUNT; i++) {
+        if (rerollMask & (1 << i)) {
+            rerollIndices[rerollCount++] = i;
+            outcomeCount *= 6;
+        }
+    }
+
+    for (int outcome = 0; outcome < outcomeCount; outcome++) {
+        int rolledDice[DICE_COUNT];
+        int values = outcome;
+
+        for (int i = 0; i < DICE_COUNT; i++) rolledDice[i] = dice[i];
+        for (int i = 0; i < rerollCount; i++) {
+            rolledDice[rerollIndices[i]] = (values % 6) + 1;
+            values /= 6;
+        }
+
+        scoreTotal += bestAvailableScore(rolledDice, usedCategories);
+    }
+
+    return scoreTotal / outcomeCount;
+}
+
+// Choose the reroll that gives the best expected score on the next roll.
+int chooseRerollMask(int dice[], int usedCategories[]) {
+    int bestMask = 0;
+    double bestExpectedScore = -1.0;
+
+    for (int mask = 0; mask < (1 << DICE_COUNT); mask++) {
+        double expectedScore = expectedScoreForMask(dice, usedCategories, mask);
+        if (expectedScore > bestExpectedScore) {
+            bestExpectedScore = expectedScore;
+            bestMask = mask;
+        }
+    }
+
+    return bestMask;
+}
+
 // Function for computer turn
 void computerTurn(int dice[], int size, int usedCategories[], int *totalScore, int scores[], const char *aiName) {
     rollDice(dice, size);
     printf("%s's initial roll:\n", aiName);
     displayDice(dice, size);
 
-    int frequency[7] = {0};
-    for (int i = 0; i < size; i++) frequency[dice[i]]++;
+    // The computer gets the same two rerolls as the human player.
+    for (int reroll = 0; reroll < 2; reroll++) {
+        int rerollMask = chooseRerollMask(dice, usedCategories);
+        if (rerollMask == 0) {
+            printf("%s keeps all dice.\n", aiName);
+            break;
+        }
 
-    // AI strategy: prioritize categories based on current dice roll
+        int rerollFlags[DICE_COUNT];
+        for (int i = 0; i < size; i++) {
+            rerollFlags[i] = (rerollMask & (1 << i)) ? 1 : 0;
+        }
+
+        printf("%s rerolls selected dice:\n", aiName);
+        rerollDice(dice, size, rerollFlags);
+        displayDice(dice, size);
+    }
+
     int bestCategory = -1;
-    int bestScore = 0;
+    int bestScore = -1;
 
-    // First, check for higher-scoring categories that are not used
     for (int category = 0; category < 13; category++) {
         if (usedCategories[category] == 0) {
             int score = calculateScore(dice, category);
-
-            // Improve decision making by considering specific category strategies:
-            if (category == 11) {  
-                if (score == 50) { 
-                    bestCategory = category;
-                    bestScore = score;
-                    break;
-                }
-            } else if (category == 8 && score == 25) {  
-                bestCategory = category;
-                bestScore = score;
-                break;
-            } else if (category == 9 && score == 30) {  
-                bestCategory = category;
-                bestScore = score;
-                break;
-            } else if (category == 10 && score == 40) {  
-                bestCategory = category;
-                bestScore = score;
-                break;
-            } else if (score > bestScore) {  // Maximize score
+            if (score > bestScore) {
                 bestCategory = category;
                 bestScore = score;
             }
         }
     }
 
-    // If neither category offers an advantage, return to Chance
-    if (bestCategory == -1) {
-        for (int category = 12; category < 13; category++) {
-            if (usedCategories[category] == 0) {
-                bestCategory = category;
-                bestScore = calculateScore(dice, category);
-            }
-        }
-    }
-
-    // Apply the best selected category
     if (bestCategory != -1) {
         usedCategories[bestCategory] = 1;
         *totalScore += bestScore;
@@ -348,4 +390,4 @@ void printFinalResults(const char *humanName, const char *aiName, int humanTotal
     printf("It's a tie!\n");
 }
     printf(" Thank you for playing!\n");
-}  
+}

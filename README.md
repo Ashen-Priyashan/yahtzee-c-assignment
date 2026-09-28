@@ -2,6 +2,8 @@
 
 A command-line Yahtzee game for a human player versus the computer. The game runs for 13 rounds and tracks scores across the Yahtzee categories.
 
+The computer can reroll dice up to twice. It compares the expected best available score for each possible set of dice to reroll, then scores the final roll in the highest-scoring unused category.
+
 ## Build
 
 With GCC installed:
